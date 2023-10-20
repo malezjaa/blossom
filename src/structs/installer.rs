@@ -35,7 +35,7 @@ impl Installer {
     }
 
     pub async fn check_for_json() -> Result<(), Box<dyn std::error::Error>> {
-        let current_dir = std::env::current_dir().unwrap();
+        let current_dir = env::current_dir().unwrap();
         let path = current_dir.join("package.json");
 
         if !path.exists() {
@@ -47,7 +47,7 @@ impl Installer {
     }
 
     pub async fn create_modules_folder() -> Result<(), Box<dyn std::error::Error>> {
-        let current_dir = std::env::current_dir()?;
+        let current_dir = env::current_dir()?;
         let path = current_dir.join("node_modules");
 
         if !path.exists() {
