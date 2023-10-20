@@ -1,41 +1,50 @@
-use std::fmt::format;
+use std::{env, fs, path::PathBuf};
+use std::collections::HashMap;
+use clap::ArgMatches;
 use colored::Colorize;
 use crate::structs::http::Requester;
 use crate::structs::installer::Installer;
-use crate::utils::version::VersionParser;
+use crate::structs::lockfile::LockFile;
+use crate::utils::{logger, types::VersionData, version::VersionParser};
 
-pub async fn install_command(
-    sub_matches: &clap::ArgMatches,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let package_name = sub_matches
-        .get_one::<String>("package_name")
-        .map(|s| s.as_str());
+pub async fn install_command(sub_matches: &ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    Installer::check_for_json().await?;
+    Installer::create_modules_folder().await?;
+
+    let package_names = sub_matches
+        .get_many::<String>("package_name")
+        .map(|vals| vals.collect::<Vec<_>>())
+        .unwrap_or_default();
 
     let is_dev = sub_matches
-        .get_one::<bool>("dev").unwrap();
+        .get_one::<bool>("dev")
+        .unwrap();
 
-    let parser = VersionParser::new();
+    let (packages_to_install, dev_packages_to_install) = LockFile::resolve_packages()?;
+    let mut installer = Installer::new();
 
-    let versions = parser.parse_package_name(package_name.unwrap().to_string())?;
-    let semantic_version = VersionParser::resolve_full_version(versions.1).unwrap();
-    let http = Requester::new();
+    install_packages(packages_to_install.clone(), false, &mut installer).await?;
+    install_packages(dev_packages_to_install.clone(), true, &mut installer).await?;
 
-    let package_data = http.get_version_metadata(&versions.0.to_string(), &semantic_version).await?;
+    for package_name in &package_names {
+        let versions = VersionParser::parse_package_name(package_name.to_string())?;
+        let semantic_version = VersionParser::resolve_full_version(versions.1).ok_or("Invalid version")?;
 
-    println!("{}", "dependencies".bold().truecolor(204, 255, 102));
-
-    if package_data.dependencies.is_some() {
-        for (name, version) in package_data.dependencies.unwrap() {
-            let dep_versions = parser.parse_package_name(name + "@" + &version)?;
-            let semantic_version = VersionParser::resolve_full_version(dep_versions.1).unwrap();
-            let installer = Installer::new(dep_versions.0, semantic_version);
-            installer.install(is_dev, &true).await?;
-        }
+        installer.install_package(&versions.0, semantic_version.clone(), is_dev, &false, &false).await?;
     }
 
-    let installer = Installer::new(versions.0, semantic_version);
+    installer.display_packages()?;
 
-    installer.install(is_dev, &false).await?;
+    Ok(())
+}
 
+async fn install_packages(
+    packages: HashMap<String, String>,
+    is_dev: bool,
+    installer: &mut Installer
+) -> Result<(), Box<dyn std::error::Error>> {
+    for (name, version) in packages {
+        installer.install_package(&name, version.clone(), &is_dev, &true, &false).await?;
+    }
     Ok(())
 }

@@ -1,3 +1,5 @@
+use std::io;
+use std::io::Write;
 use bytes::Bytes;
 use crate::errors::BlossomError;
 use crate::errors::BlossomError::{FailedResponseText, HTTPFailed, ParsingFailed};
@@ -50,6 +52,8 @@ impl Requester {
         package_name: &String,
         version: &String,
     ) -> Result<VersionData, BlossomError> {
+        print!("🔍 {}        \r", package_name);
+        io::stdout().flush().unwrap();
         let response = request(
             self.client.clone(),
             format!("/{package_name}/{version}", package_name = package_name, version = version),

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use chrono::Local;
 use colored::*;
 
@@ -17,4 +18,13 @@ pub fn success(message: &str) {
     let message = format!("{} {}", " SUCCESS ".black().bold().on_green(), message);
 
     println!("{}", message);
+}
+
+pub fn print_packages(title: &str, packages: &HashMap<String, String>) {
+    if !packages.is_empty() {
+        println!("\n{}", title.cyan());
+        for (name, version) in packages {
+            println!("{} {} {}", "+".bold().cyan(), name.bold(), version.bold().truecolor(106, 106, 106));
+        }
+    }
 }

@@ -18,22 +18,43 @@ impl VersionParser {
         Self {}
     }
 
-    pub fn parse_package_name(&self, package_name: String) -> Result<PackageDetails, String> {
-        let mut split = package_name.split('@');
+    pub fn parse_package_name(package_name: String) -> Result<PackageDetails, String> {
+        if package_name.starts_with('@') {
+            let split = package_name.split('@');
+            let mut parts = split.clone().collect::<Vec<&str>>();
+            parts.remove(0);
+            if parts.len() == 2 {
+                let name = format!("@{}", parts[0]);
+                let version_raw = parts[1];
+                let comparator = VersionParser::parse_semantic_version(&version_raw.to_string()).unwrap();
+                Ok((name, Some(comparator)))
+            } else {
+                let name = format!("@{}", parts[0]);
+                let comparator = VersionParser::parse_semantic_version(&"latest".to_string()).unwrap();
+                Ok((name, Some(comparator)))
+            }
+        } else {
+            let mut split = package_name.split('@');
 
-        let name = split
-            .next().unwrap().to_string();
+            let name = split
+                .next().unwrap().to_string();
 
-        //TODO: add error handling
+            let version_raw = match split.next() {
+                Some(version_raw) if version_raw == "latest" => return Ok((name, None)),
+                Some(version_raw) => version_raw,
+                None => return Ok((name, None)),
+            };
 
-        let version_raw = match split.next() {
-            Some(version_raw) if version_raw == "latest" => return Ok((name, None)),
-            Some(version_raw) => version_raw,
-            None => return Ok((name, None)),
-        };
+            let comparator = VersionParser::parse_semantic_version(&version_raw.to_string()).unwrap();
+            Ok((name, Some(comparator)))
+        }
+    }
+    pub fn combine_name(name: &str, version: &str) -> String {
+        name.to_string() + "@" + &*version.to_string().replace('^', "")
+    }
 
-        let comparator = Self::parse_semantic_version(&version_raw.to_string()).unwrap();
-        Ok((name, Some(comparator)))
+    pub fn sanitize_version(version: &str) -> String {
+        version.to_string().replace('^', "")
     }
 
     pub fn parse_semantic_version(raw_version: &String) -> Result<Comparator, BlossomError> {

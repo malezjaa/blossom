@@ -26,6 +26,7 @@ pub struct PackageJsonExample {
 pub struct PackageJson {
     pub dependencies: Option<HashMap<String, String>>,
     pub devDependencies: Option<HashMap<String, String>>,
+    pub scripts: Option<HashMap<String, String>>,
 }
 
 impl Package {
@@ -109,7 +110,7 @@ impl Package {
     pub fn read_from_file() -> Result<PackageJson, Box<dyn std::error::Error>> {
         let current_dir = std::env::current_dir()?;
         let path = current_dir.join("package.json");
-        let file_contents = fs::read_to_string(&path)?;
+        let file_contents = fs::read_to_string(path)?;
 
         let package_json: PackageJson = serde_json::from_str(&file_contents)?;
 

@@ -1,4 +1,5 @@
-use std::fs;
+use std::{fs, io};
+use std::io::ErrorKind;
 use std::path::Path;
 
 pub fn copy_dir_contents(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -25,25 +26,22 @@ pub fn copy_dir_contents(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 #[cfg(unix)]
-pub fn symlink_dir<P: AsRef<Path>, U: AsRef<Path>>(from: P, to: U) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(from, to)?;
-    Ok(())
+pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
+    os::unix::fs::symlink(original, link)
 }
 
 #[cfg(windows)]
-pub fn symlink_dir<P: AsRef<Path>, U: AsRef<Path>>(from: P, to: U) -> std::io::Result<()> {
-    junction::create(from, to)?;
-    Ok(())
+pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
+    junction::create(original, link)
 }
 
-#[cfg(windows)]
-pub fn remove_symlink_dir<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
-    fs::remove_dir(path)?;
-    Ok(())
-}
-
-#[cfg(unix)]
-pub fn remove_symlink_dir<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
-    std::fs::remove_file(path)?;
-    Ok(())
+pub fn symlink_pkg(symlink_target: &Path, symlink_path: &Path) {
+    if let Err(error) = symlink_dir(symlink_target, symlink_path) {
+        match error.kind() {
+            ErrorKind::AlreadyExists => {}
+            _ => panic!(
+                "Failed to create symlink at {symlink_path:?} to {symlink_target:?}: {error}"
+            )
+        }
+    }
 }

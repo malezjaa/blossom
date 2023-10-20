@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct VersionData {
     pub name: String,
     pub version: String,
@@ -10,7 +10,7 @@ pub struct VersionData {
     pub dist: Dist,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Dist {
     pub tarball: String,
 }

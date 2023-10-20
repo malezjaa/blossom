@@ -1,10 +1,13 @@
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use flate2::read::GzDecoder;
 use reqwest::Client;
 use tar::Archive;
+use tokio::fs::create_dir_all;
 use crate::structs::http::Requester;
-use crate::utils::files::{copy_dir_contents, symlink_dir};
+use crate::utils::files::{copy_dir_contents, symlink_dir, symlink_pkg};
+use crate::utils::logger;
 
 pub struct Cache;
 
@@ -37,30 +40,48 @@ impl Cache {
     }
 
     pub async fn clone_from_cache(&self, tarball_url: &str, version: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let normalized_name = &name.replace('/', "\\");
         let cache_dir = self.get_cache_dir().unwrap();
-        let package_dir = cache_dir.join(format!("{}@{}", name, version));
+        let package_dir = cache_dir.join(format!("{}@{}", normalized_name, version));
         let current_dir = std::env::current_dir()?;
-        let node_path = current_dir.join("node_modules").join(name);
+        let node_modules = current_dir.join("node_modules").join(normalized_name);
 
-        if package_dir.exists() {
-            fs::remove_dir_all(&node_path);
-            copy_dir_contents(&package_dir, &node_path)?;
-
-            return Ok(());
+        if !node_modules.parent().unwrap().exists() {
+            create_dir_all(node_modules.parent().unwrap()).await?;
         }
 
-        let bytes = Requester::get_bytes(Client::new(), String::from(tarball_url)).await?;
+        if !package_dir.exists() {
+            let bytes = Requester::get_bytes(Client::new(), String::from(tarball_url)).await?;
+            let bytes = &bytes.to_vec()[..];
+            let gz = GzDecoder::new(bytes);
+            let mut archive = Archive::new(gz);
 
-        let bytes = &bytes.to_vec()[..];
-        let gz = GzDecoder::new(bytes);
-        let mut archive = Archive::new(gz);
+            let tmp_dir = current_dir.join("node_modules").join("tmp").join(normalized_name);
+            archive.unpack(&tmp_dir)?;
+            create_dir_all(&package_dir).await?;
+            copy_dir_contents(&tmp_dir.join("package"), &package_dir)?;
 
-        let tmp_dir = current_dir.join("node_modules").join("tmp").join(name);
-        archive.unpack(&tmp_dir)?;
-        fs::create_dir_all(&package_dir)?;
-        copy_dir_contents(&tmp_dir.join("package"), &package_dir)?;
-        symlink_dir(&package_dir, &node_path)?;
-        fs::remove_dir_all(current_dir.join("node_modules").join("tmp"))?;
+            fs::remove_dir_all(current_dir.join("node_modules").join("tmp"))?;
+
+            symlink_pkg(
+                &package_dir,
+                &node_modules,
+            );
+        } else {
+            symlink_pkg(
+                &package_dir,
+                &node_modules,
+            );
+        };
+
+        Ok(())
+    }
+
+    pub fn clear_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let cache_dir = self.get_cache_dir().unwrap();
+        fs::remove_dir_all(cache_dir)?;
+
+        logger::success("Successfully cleared cache");
 
         Ok(())
     }
