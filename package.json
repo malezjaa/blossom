@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "prepare": "husky install .husky",
-    "release": "cargo build && changelogen --push && npm publish"
+    "release": "cargo build && changelogen --release --push && npm publish"
   },
   "author": "malezjaa",
   "license": "MIT",
@@ -14,5 +14,5 @@
     "lint-staged": "^13.3.0",
     "prettier": "^3.0.3"
   },
-  "version": "0.0.1"
+  "version": "0.0.2"
 }
