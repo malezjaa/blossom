@@ -1,11 +1,8 @@
 {
-  "private": true,
-  "scripts": {
-    "prepare": "husky install .husky",
-    "release": "cargo build && changelogen --release --push && npm publish"
-  },
   "author": "malezjaa",
-  "license": "MIT",
+  "dependencies": {
+    "prettier": "3.0.3"
+  },
   "devDependencies": {
     "@commitlint/cli": "^17.7.2",
     "@commitlint/config-angular": "^17.7.0",
@@ -13,6 +10,12 @@
     "husky": "^8.0.3",
     "lint-staged": "^13.3.0",
     "prettier": "^3.0.3"
+  },
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "prepare": "husky install .husky",
+    "release": "cargo build && changelogen --release --push && npm publish"
   },
   "version": "0.0.4"
 }

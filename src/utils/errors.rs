@@ -1,6 +1,5 @@
 use std::io::Error;
 use thiserror::Error;
-
 #[derive(Error, Debug)]
 pub enum BlossomError {
     #[error("failed to execute http request ({0})")]
@@ -10,7 +9,7 @@ pub enum BlossomError {
     FailedResponseText(reqwest::Error),
 
     #[error("invalid version notation ({0})")]
-    InvalidVersionNotation(semver::Error),
+    InvalidVersionNotation(node_semver::SemverError),
 
     #[error("failed to parse http data to struct via json ({0})")]
     ParsingFailed(serde_json::Error),

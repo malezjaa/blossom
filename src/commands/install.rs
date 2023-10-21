@@ -5,7 +5,8 @@ use colored::Colorize;
 use crate::structs::http::Requester;
 use crate::structs::installer::Installer;
 use crate::structs::lockfile::LockFile;
-use crate::utils::{logger, types::VersionData, version::VersionParser};
+use crate::structs::versions::VersionParser;
+use crate::utils::{logger};
 
 pub async fn install_command(sub_matches: &ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     Installer::check_for_json().await?;
@@ -27,10 +28,9 @@ pub async fn install_command(sub_matches: &ArgMatches) -> Result<(), Box<dyn std
     install_packages(dev_packages_to_install.clone(), true, &mut installer).await?;
 
     for package_name in &package_names {
-        let versions = VersionParser::parse_package_name(package_name.to_string())?;
-        let semantic_version = VersionParser::resolve_full_version(versions.1).ok_or("Invalid version")?;
+        let data = VersionParser::resolve_package_name(package_name).unwrap();
 
-        installer.install_package(&versions.0, semantic_version.clone(), is_dev, &false, &false).await?;
+        installer.install_package(&data.0, data.1, is_dev, &false, &false).await?;
     }
 
     installer.display_packages()?;

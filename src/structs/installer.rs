@@ -5,13 +5,14 @@ use std::thread::sleep;
 use std::time::Duration;
 use crate::structs::http::Requester;
 use crate::utils::logger;
-use crate::utils::types::{Dist, VersionData};
+use crate::utils::types::{BinData, Dist, VersionData};
 use colored;
 use colored::Colorize;
 use crate::structs::cache::Cache;
+use crate::structs::versions::VersionParser;
 use crate::structs::package::{Package, PackageJson};
-use crate::utils::version::VersionParser;
 use async_recursion::async_recursion;
+use crate::structs::binary::Binary;
 use crate::structs::lockfile::{LockFile, LockFileEntry};
 use crate::utils::logger::print_packages;
 
@@ -28,7 +29,7 @@ impl Installer {
         }
     }
 
-    pub async fn package_data(http: &Requester, name: String, version: String) -> Result<VersionData, Box<dyn std::error::Error>> {
+    pub async fn package_data(http: &Requester, name: String, version: String) -> Result<(VersionData, Option<BinData>), Box<dyn std::error::Error>> {
         let package_data = http.get_version_metadata(&name.to_string(), &version.to_string()).await?;
 
         Ok(package_data)
@@ -64,13 +65,13 @@ impl Installer {
         let http = Requester::new();
         let lock_entry = LockFile::find_entry(name);
         let cache = Cache::new();
-        let package_json= Package::read_from_file()?;
         let mut dist: Dist = Dist {
             tarball: "".to_string(),
         };
         let mut deps: Option<HashMap<String, String>> = None;
         let mut resolved_name = String::new();
         let mut resolved_version = String::new();
+        let mut bin: Option<BinData> = None;
 
         if let Some(w) = lock_entry.clone() {
             if version != "latest" && version == w.version {
@@ -79,28 +80,32 @@ impl Installer {
                 deps = entry.dependencies.clone();
                 resolved_name = entry.name.clone();
                 resolved_version = entry.version;
+                bin = entry.bin;
             } else {
                 let package_info = Installer::package_data(&http, name.to_string(), version.to_string()).await?;
+                let data = package_info.0;
 
-                dist.tarball = package_info.dist.tarball.clone();
-                resolved_name = package_info.name.clone();
-                resolved_version = package_info.version.clone();
-                deps = package_info.dependencies;
+                dist.tarball = data.dist.tarball.clone();
+                resolved_name = data.name.clone();
+                resolved_version = data.version.clone();
+                deps = data.dependencies;
+                bin = package_info.1;
             }
         } else {
             let package_info = Installer::package_data(&http, name.to_string(), version.to_string()).await?;
+            let data = package_info.0;
 
-            dist.tarball = package_info.dist.tarball.clone();
-            resolved_name = package_info.name.clone();
-            resolved_version = package_info.version.clone();
-            deps = package_info.dependencies;
+            dist.tarball = data.dist.tarball.clone();
+            resolved_name = data.name.clone();
+            resolved_version = data.version.clone();
+            deps = data.dependencies;
+            bin = package_info.1;
         }
 
         for (name, dep_version) in deps.clone().unwrap_or_default() {
-            let versions = VersionParser::parse_package_name(VersionParser::combine_name(&name, &dep_version))?;
-            let semantic_version = VersionParser::resolve_full_version(versions.1).ok_or("Invalid version")?;
+            let data = VersionParser::resolve_package_name(&VersionParser::combine_name(&name, &dep_version)?)?;
             let mut installer = Installer::new();
-            installer.install_package(&name, semantic_version, is_dev, &false, &true).await?;
+            installer.install_package(&data.0, data.1, is_dev, &false, &true).await?;
         }
 
         match cache.clone_from_cache(&dist.tarball, &resolved_version.clone(), &resolved_name).await {
@@ -115,6 +120,19 @@ impl Installer {
                     }
                 }
 
+                if bin.is_some() {
+                    match bin.clone().unwrap() {
+                        BinData::StringValue(bin) => {
+                            Binary::create_package_binary(&resolved_name, &bin.replace('\"', "")).unwrap();
+                        }
+                        BinData::HashMapValue(bin) => {
+                           for (key, value) in bin {
+                               Binary::create_package_binary(&key, &value.replace('\"', "")).unwrap();
+                           }
+                        }
+                    }
+                }
+
                 if lock_entry.clone().is_none() {
                     let entry = LockFileEntry {
                         name: resolved_name.to_string(),
@@ -123,6 +141,7 @@ impl Installer {
                         is_package_dep: *is_package_dep,
                         is_dev: *is_dev,
                         dist,
+                        bin
                     };
 
                     LockFile::add_entry(entry).unwrap();

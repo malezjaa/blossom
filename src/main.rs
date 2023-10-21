@@ -8,9 +8,9 @@ mod utils {
     pub mod logger;
     pub mod types;
     pub mod errors;
-    pub mod version;
     pub mod files;
     pub mod scripts;
+    pub mod constants;
 }
 
 mod commands {
@@ -27,14 +27,18 @@ mod structs {
     pub mod cache;
     pub mod installer;
     pub mod lockfile;
+    pub mod binary;
+    pub mod versions;
 }
 
-use utils::{logger, types, errors, version, files, scripts};
+use utils::{logger, types, errors, files, scripts, constants};
 use structs::http::Requester;
 use structs::package::Package;
 use structs::cache::Cache;
 use structs::installer::Installer;
 use structs::lockfile::LockFile;
+use structs::binary::Binary;
+use structs::versions::VersionParser;
 use crate::commands::init::init_command;
 use crate::commands::install::install_command;
 use crate::commands::cache::cache_command;
@@ -70,8 +74,8 @@ async fn main() {
                 .await
                 .unwrap_or_else(|err| logger::error(&format!("{}", err)));
         }
-        Some(("start", sub_matches)) => {
-            start_command(sub_matches)
+        Some(("start", _sub_matches)) => {
+            start_command()
                 .await
                 .unwrap_or_else(|err| logger::error(&format!("{}", err)));
         }

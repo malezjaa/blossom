@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::{env, fs};
 use serde::{Deserialize, Serialize};
 use crate::structs::package::Package;
-use crate::utils::types::{Dist, VersionData};
+use crate::utils::types::{BinData, Dist, VersionData};
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct LockFileEntry  {
@@ -12,6 +12,7 @@ pub struct LockFileEntry  {
     pub dist: Dist,
     pub is_package_dep: bool,
     pub is_dev: bool,
+    pub bin: Option<BinData>
 }
 
 pub struct LockFile;
