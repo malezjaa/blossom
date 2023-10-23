@@ -62,6 +62,10 @@ impl Installer {
     pub async fn install_package(&mut self, name: &str, version: String, is_dev: &bool, from_json: &bool, is_package_dep: &bool) -> Result<(), Box<dyn std::error::Error>> {
         print!("📦 {}        \r", name);
 
+        if self.installed_packages.contains_key(name) || self.dev_installed_packages.contains_key(name) {
+            return Ok(());
+        }
+
         let http = Requester::new();
         let lock_entry = LockFile::find_entry(name);
         let cache = Cache::new();
@@ -73,27 +77,27 @@ impl Installer {
         let mut resolved_version = String::new();
         let mut bin: Option<BinData> = None;
 
-        if let Some(w) = lock_entry.clone() {
-            if version != "latest" && version == w.version {
-                let entry = lock_entry.clone().unwrap();
-                dist.tarball = entry.dist.tarball.clone();
-                deps = entry.dependencies.clone();
-                resolved_name = entry.name.clone();
-                resolved_version = entry.version;
-                bin = entry.bin;
-            } else {
-                let package_info = Installer::package_data(&http, name.to_string(), version.to_string()).await?;
-                let data = package_info.0;
-
-                dist.tarball = data.dist.tarball.clone();
-                resolved_name = data.name.clone();
-                resolved_version = data.version.clone();
-                deps = data.dependencies;
-                bin = package_info.1;
-            }
+        if lock_entry.is_some() && version != "latest" && version == lock_entry.clone().unwrap().version {
+            let entry = lock_entry.clone().unwrap();
+            dist.tarball = entry.dist.tarball.clone();
+            deps = entry.dependencies.clone();
+            resolved_name = entry.name.clone();
+            resolved_version = entry.version;
+            bin = entry.bin;
         } else {
-            let package_info = Installer::package_data(&http, name.to_string(), version.to_string()).await?;
+            let version_to_use = if VersionParser::has_range(&version) {
+                "latest"
+            } else {
+                &version
+            };
+
+            let package_info = Installer::package_data(&http, name.to_string(), version_to_use.to_string()).await?;
             let data = package_info.0;
+
+            if VersionParser::has_range(&version) && !VersionParser::test_range(&data.version, &version)? {
+                logger::error(&format!("{} {} does not satisfy the version range of {}", name.bold(), data.version.bold(), version.bold()));
+                return Ok(());
+            }
 
             dist.tarball = data.dist.tarball.clone();
             resolved_name = data.name.clone();
@@ -103,9 +107,8 @@ impl Installer {
         }
 
         for (name, dep_version) in deps.clone().unwrap_or_default() {
-            let data = VersionParser::resolve_package_name(&VersionParser::combine_name(&name, &dep_version)?)?;
             let mut installer = Installer::new();
-            installer.install_package(&data.0, data.1, is_dev, &false, &true).await?;
+            installer.install_package(&name, dep_version, is_dev, &false, &true).await?;
         }
 
         match cache.clone_from_cache(&dist.tarball, &resolved_version.clone(), &resolved_name).await {

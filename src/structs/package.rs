@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Error, Write};

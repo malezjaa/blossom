@@ -53,6 +53,8 @@ mod cli;
 async fn main() {
     let matches = cli().get_matches();
 
+    println!("{:?}", VersionParser::resolve_package_name("@types/node@14.0.0").unwrap());
+
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
             init_command(sub_matches)

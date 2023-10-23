@@ -10,6 +10,7 @@ use crate::utils::errors::BlossomError::FailedResponseBytes;
 use colored;
 use colored::Colorize;
 use serde_json::Value;
+use crate::structs::versions::VersionParser;
 use crate::utils::types::BinData;
 
 pub const REGISTRY_URL: &str = "https://registry.npmjs.org";
@@ -44,11 +45,28 @@ impl Requester {
         &self,
         package_name: &String,
     ) -> Result<String, BlossomError> {
-        request(
+        let response = request(
             self.client.clone(),
             format!("/{package_name}/latest", package_name = package_name),
         )
-            .await
+            .await;
+
+        if response.is_err() {
+            return Err(BlossomError::PackageNotFound(format!(
+                "{} is not in the npm registry, or you have no permission to fetch it",
+                package_name.to_string().bold()
+            )));
+        }
+
+        let result = response.unwrap();
+        if result == "Not Found" {
+            return Err(BlossomError::PackageNotFound(format!(
+                "{} is not in the npm registry, or you have no permission to fetch it",
+                package_name.to_string().bold()
+            )));
+        }
+
+        Ok(result)
     }
 
     pub async fn get_version_metadata(
@@ -58,6 +76,7 @@ impl Requester {
     ) -> Result<(VersionData, Option<BinData>), BlossomError> {
         print!("🔍 {}        \r", package_name);
         io::stdout().flush().unwrap();
+        let version = VersionParser::sanitize_version(version);
         let response = request(
             self.client.clone(),
             format!("/{package_name}/{version}", package_name = package_name, version = version),
@@ -90,8 +109,6 @@ impl Requester {
         Ok((json, bin))
     }
 
-
-
     pub async fn get_bytes(client: reqwest::Client, url: String) -> Result<Bytes, BlossomError> {
         client
             .get(url)
@@ -101,5 +118,24 @@ impl Requester {
             .bytes()
             .await
             .map_err(FailedResponseBytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn throw_when_package_doesnt_exist() {
+        let requester = Requester::new();
+        let package_name = "this-package-doesnt-exist".to_string();
+        let result = requester.get_package_metadata(&package_name).await;
+
+        assert!(result.is_err());
+
+        let version = "13.043.034".to_string();
+        let result = requester.get_version_metadata(&"chalk".to_string(), &version).await;
+
+        assert!(result.is_err());
     }
 }
